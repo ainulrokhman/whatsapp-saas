@@ -1,0 +1,194 @@
+// WhatsApp SaaS - Prisma Schema (MySQL)
+// Sesuai dev-plan: multi-tenant, RBAC, Device, Contact, BroadcastLog
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // hash (bcrypt)
+  name      String?
+  image     String?
+  emailVerified DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  userRoles UserRole[]
+
+  @@index([email])
+}
+
+// NextAuth.js account & session (untuk OAuth jika dipakai)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- Multi-tenant & RBAC ---
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userRoles    UserRole[]
+  devices      Device[]
+  contacts     Contact[]
+  broadcastLogs BroadcastLog[]
+
+  @@index([slug])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // super_admin, tenant_admin, operator, viewer
+  description String?
+  createdAt   DateTime @default(now())
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@index([name])
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique // device:create, broadcast:send, user:manage, dll
+  description String?
+  createdAt   DateTime @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@index([name])
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  tenantId  String?  // null = super_admin (global), isi = scope tenant
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([roleId])
+  @@unique([userId, roleId, tenantId])
+}
+
+// --- WhatsApp devices (Baileys session per tenant) ---
+
+model Device {
+  id           String   @id @default(cuid())
+  tenantId     String
+  name         String   // nama device/session
+  status       String   @default("disconnected") // disconnected, connecting, connected
+  authStatePath String? // path atau key untuk auth state Baileys
+  phoneNumber  String?  // terisi setelah connected
+  lastActiveAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+// --- Contacts & Broadcast ---
+
+model Contact {
+  id        String   @id @default(cuid())
+  tenantId  String
+  phone     String   // format internasional
+  name      String?
+  tag       String?  // untuk grouping
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+  @@index([tenantId, tag])
+}
+
+model BroadcastLog {
+  id         String   @id @default(cuid())
+  tenantId   String
+  deviceId   String?
+  message    String   @db.Text
+  recipientCount Int   @default(0)
+  successCount   Int  @default(0)
+  failCount      Int  @default(0)
+  status     String   @default("pending") // pending, running, completed, failed
+  startedAt  DateTime?
+  completedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
