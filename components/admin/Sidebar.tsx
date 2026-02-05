@@ -3,17 +3,23 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import type { PermissionName } from "@/lib/rbac";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/devices", label: "Devices" },
-  { href: "/contacts", label: "Contacts" },
-  { href: "/broadcast", label: "Broadcast" },
+const navItems: { href: string; label: string; permission?: PermissionName }[] = [
+  { href: "/dashboard", label: "Dashboard", permission: "tenant:read" },
+  { href: "/devices", label: "Devices", permission: "device:read" },
+  { href: "/contacts", label: "Contacts", permission: "contact:read" },
+  { href: "/broadcast", label: "Broadcast", permission: "broadcast:read" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ permissions }: { permissions: PermissionName[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const allowed = new Set(permissions);
+  const items = navItems.filter(
+    (item) => !item.permission || allowed.has(item.permission)
+  );
+  const visibleItems = items.length > 0 ? items : [{ href: "/dashboard", label: "Dashboard" }];
 
   return (
     <>
@@ -35,7 +41,7 @@ export function Sidebar() {
         <div className="flex h-full flex-col pt-16 md:pt-4">
           <div className="px-4 py-4 font-semibold text-white">WhatsApp SaaS</div>
           <nav className="flex-1 space-y-1 px-2">
-            {navItems.map(({ href, label }) => {
+            {visibleItems.map(({ href, label }) => {
               const isActive = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
               return (
                 <Link
