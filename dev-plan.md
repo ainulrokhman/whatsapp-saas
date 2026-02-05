@@ -67,7 +67,7 @@ flowchart LR
     A1 --> A2 --> A3 --> B1 --> B2 --> C1 --> C2 --> C3 --> D1 --> D2
 ```
 
-### Fase 1: Fondasi (mulai dari sini)
+### Fase 1: Fondasi (mulai dari sini) — **Selesai**
 
 1. **Database & Prisma** — Setup MySQL, `schema.prisma` (User, Tenant, Role, Permission, UserRole, Device, Contact, BroadcastLog). Singleton `lib/db.ts`, migrasi, seed role & permission. Semua fitur butuh data layer.
 2. **Autentikasi** — NextAuth.js (atau alternatif), Credentials/OAuth. Session, login/logout, proteksi route. RBAC dan halaman admin butuh user yang teridentifikasi.
@@ -234,6 +234,8 @@ whatsapp-saas/
 ### Environment
 
 - File `.env` (dan `.env.local`) untuk `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, dll.
+- **NEXTAUTH_SECRET** wajib cukup panjang untuk enkripsi JWT (min. 64 karakter; disarankan 512 bit): generate dengan `openssl rand -base64 64`. Secret terlalu pendek menyebabkan `JWT_SESSION_ERROR` (Invalid Content Encryption Key length).
+- Proteksi route: gunakan file **proxy.ts** di root project (konvensi Next.js 16; sebelumnya middleware.ts deprecated). Export function `proxy`; matcher untuk path yang dilindungi.
 - Jangan commit file yang berisi secret; `.env*` ada di `.gitignore`.
 
 ### Checklist Next.js
@@ -246,6 +248,12 @@ whatsapp-saas/
 ---
 
 ## 4. Admin Template (Tailwind CSS)
+
+### Ketentuan
+
+- **Wajib** menggunakan template dashboard admin yang berbasis **Tailwind CSS** untuk seluruh halaman admin (dashboard, devices, contacts, broadcast, settings).
+- Pilihan: pakai template/komponen kit open-source (mis. Flowbite, DaisyUI, Tailwind UI) atau bangun custom dengan utility Tailwind; yang penting konsisten Tailwind dan tidak mencampur framework CSS lain untuk layout admin.
+- Tujuan: UI seragam, maintenance satu sistem styling, dan percepatan development dengan komponen siap pakai.
 
 ### Base
 
@@ -267,13 +275,14 @@ whatsapp-saas/
 - **Alerts**: Success/error/info (toast atau inline).
 - **Breadcrumb**: Navigasi hierarki (Admin > Devices > Detail).
 
-### Referensi
+### Referensi Template
 
-- Bisa mengadopsi pola dari template admin open-source (Flowbite, DaisyUI, atau custom) dengan Tailwind saja.
-- Konsisten: spacing (4/8/16/24), typography (heading, body), dark/light jika dibutuhkan.
+- **Disarankan** salah satu: Flowbite (komponen Tailwind), DaisyUI (Tailwind + semantic classes), atau template admin Tailwind lain yang kompatibel dengan Tailwind 4.
+- Jika custom: tetap pakai Tailwind saja; konsisten spacing (4/8/16/24), typography (heading, body), dan opsional dark/light mode.
 
 ### Checklist Admin Template
 
+- [ ] Template dashboard admin Tailwind dipilih dan dipasang (Flowbite/DaisyUI/custom)
 - [ ] Design tokens didefinisikan
 - [ ] Layout sidebar + header + main content
 - [ ] Responsive (sidebar collapse di mobile)
@@ -312,10 +321,10 @@ whatsapp-saas/
 
 ### Checklist MySQL & Prisma
 
-- [ ] Schema Prisma lengkap (User, Tenant, Role, Permission, UserRole, Device, Contact, dll)
-- [ ] Provider mysql; migrasi dipakai untuk versioning
-- [ ] Singleton client di `lib/db.ts`
-- [ ] Transaksi untuk operasi multi-tabel; indeks pada kolom kunci
+- [x] Schema Prisma lengkap (User, Tenant, Role, Permission, UserRole, Device, Contact, dll)
+- [x] Provider mysql; migrasi dipakai untuk versioning
+- [x] Singleton client di `lib/db.ts`
+- [x] Transaksi untuk operasi multi-tabel; indeks pada kolom kunci
 
 ---
 
@@ -369,10 +378,10 @@ whatsapp-saas/
 
 ### Checklist RBAC
 
-- [ ] Tabel Role, Permission, RolePermission, UserRole (dengan scope tenant)
-- [ ] Helper requirePermission di backend
+- [x] Tabel Role, Permission, RolePermission, UserRole (dengan scope tenant)
+- [x] Helper requirePermission di backend
 - [ ] UI menyesuaikan tampilan berdasarkan permission
-- [ ] Seed default: super_admin, tenant_admin, operator, viewer + permission
+- [x] Seed default: super_admin, tenant_admin, operator, viewer + permission
 
 ---
 
@@ -396,22 +405,24 @@ whatsapp-saas/
 
 ### Secrets
 
+- **NEXTAUTH_SECRET**: Minimal 64 karakter; disarankan generate dengan `openssl rand -base64 64` (512 bit) agar enkripsi JWT tidak gagal. Setelah mengubah secret, clear cookie session atau login ulang.
 - **Session Baileys** (auth state): Simpan di path yang aman; pertimbangkan encrypt at rest jika sangat sensitif.
 - **Env**: Semua secret (DB URL, NextAuth secret, API key) via env; tidak hardcode.
 
 ### Rate Limiting
 
 - Terapkan di API Routes untuk: login, send message, dan endpoint publik (jika ada).
-- Bisa pakai middleware atau lib rate-limit (per IP atau per user).
+- Bisa pakai proxy/helper atau lib rate-limit (per IP atau per user).
 
 ### CORS & Headers
 
 - Konfigurasi CORS yang ketat untuk API (allow origin yang diperlukan saja).
-- Security headers: CSP, X-Frame-Options, dll (via `next.config` atau middleware).
+- Security headers: CSP, X-Frame-Options, dll (via `next.config` atau proxy).
 
 ### Checklist Security
 
-- [ ] NextAuth (atau alternatif) dengan session aman; HTTPS di production
+- [x] NextAuth (atau alternatif) dengan session aman; HTTPS di production
+- [x] NEXTAUTH_SECRET 512-bit (openssl rand -base64 64) untuk hindari JWT_SESSION_ERROR
 - [ ] Validasi input (Zod) di semua entry point
 - [ ] Hanya Prisma/parameterized query; tidak concatenate user input ke SQL
 - [ ] Secret di env; state Baileys aman
@@ -480,8 +491,9 @@ whatsapp-saas/
 ### Deployment
 
 - Build: `next build`; jalankan `prisma migrate deploy` saat deploy.
-- Env production: semua secret dan `NODE_ENV=production`.
+- Env production: semua secret (termasuk NEXTAUTH_SECRET 512-bit) dan `NODE_ENV=production`.
 - **Queue**: Untuk broadcast besar, pertimbangkan queue (BullMQ, Inngest) agar tidak timeout dan bisa retry.
+- Request GET `/sw.js` dapat mengembalikan 404 jika tidak menggunakan PWA; aman diabaikan atau tambah placeholder di `public/sw.js`.
 
 ### Checklist Tambahan
 
@@ -497,9 +509,9 @@ whatsapp-saas/
 - [ ] **Arsitektur**: Layers jelas; Baileys terisolasi; multi-tenant dengan tenantId
 - [ ] **Next.js**: App Router; Server/Client tepat; env aman
 - [ ] **Admin**: Layout + komponen Tailwind konsisten
-- [ ] **DB**: Prisma + MySQL; schema + migrasi + seed
+- [x] **DB**: Prisma + MySQL; schema + migrasi + seed
 - [ ] **API**: Server Actions + Routes; dokumentasi OpenAPI
-- [ ] **RBAC**: Role, permission, scope tenant; enforce di backend & UI
+- [x] **RBAC**: Role, permission, scope tenant; enforce di backend & UI
 - [ ] **Security**: Auth, validasi, rate limit, secret, headers
 - [ ] **SOLID & Clean**: Service/repository; interface; DI; naming & error handling
 - [ ] **Baileys, testing, logging, deployment**: Sesuai poin tambahan di atas

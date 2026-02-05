@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 const protectedPaths = ["/dashboard", "/admin"];
 const authPath = "/login";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
   const isAuthPage = pathname.startsWith(authPath);
