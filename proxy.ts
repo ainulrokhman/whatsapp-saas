@@ -2,7 +2,7 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedPaths = ["/dashboard", "/admin"];
+const protectedPaths = ["/dashboard", "/devices", "/contacts", "/broadcast", "/admin"];
 const authPath = "/login";
 
 export async function proxy(request: NextRequest) {
@@ -29,5 +29,16 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/login"],
+  matcher: [
+    "/dashboard",
+    "/dashboard/:path*",
+    "/devices",
+    "/devices/:path*",
+    "/contacts",
+    "/contacts/:path*",
+    "/broadcast",
+    "/broadcast/:path*",
+    "/admin/:path*",
+    "/login",
+  ],
 };
